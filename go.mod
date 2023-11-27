@@ -1,4 +1,4 @@
-module github.com/ThreeDotsLabs/watermill-rediszset
+module github.com/stong1994/watermill-rediszset
 
 go 1.21
 

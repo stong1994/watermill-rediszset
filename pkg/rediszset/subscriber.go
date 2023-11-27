@@ -1,4 +1,4 @@
-package redisstream
+package rediszset
 
 import (
 	"context"
@@ -291,7 +291,7 @@ func (h *messageHandler) processMessage(ctx context.Context, topic string, z red
 
 	h.logger.Trace("Received message from redis stream", receivedMsgLogFields)
 
-	msg, err := h.unmarshaller.Unmarshal(z.Member.(map[string]interface{}))
+	msg, err := h.unmarshaller.Unmarshal([]byte(z.Member.(string)))
 	if err != nil {
 		return errors.Wrapf(err, "message unmarshal failed")
 	}

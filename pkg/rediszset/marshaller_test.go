@@ -1,4 +1,4 @@
-package redisstream
+package rediszset_test
 
 import (
 	"testing"
@@ -7,10 +7,12 @@ import (
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/stong1994/watermill-rediszset/pkg/rediszset"
 )
 
 func TestDefaultMarshallerUnmarshaller_MarshalUnmarshal(t *testing.T) {
-	m := DefaultMarshallerUnmarshaller{}
+	m := rediszset.DefaultMarshallerUnmarshaller{}
 
 	msg := message.NewMessage(watermill.NewUUID(), []byte("payload"))
 	msg.Metadata.Set("foo", "bar")
@@ -18,16 +20,14 @@ func TestDefaultMarshallerUnmarshaller_MarshalUnmarshal(t *testing.T) {
 	marshaled, err := m.Marshal("topic", msg)
 	require.NoError(t, err)
 
-	consumerMessage, err := producerToConsumerMessage(marshaled)
-	require.NoError(t, err)
-	unmarshaledMsg, err := m.Unmarshal(consumerMessage)
+	unmarshaledMsg, err := m.Unmarshal(marshaled)
 	require.NoError(t, err)
 
 	assert.True(t, msg.Equals(unmarshaledMsg))
 }
 
 func BenchmarkDefaultMarshallerUnmarshaller_Marshal(b *testing.B) {
-	m := DefaultMarshallerUnmarshaller{}
+	m := rediszset.DefaultMarshallerUnmarshaller{}
 
 	msg := message.NewMessage(watermill.NewUUID(), []byte("payload"))
 	msg.Metadata.Set("foo", "bar")
@@ -42,7 +42,7 @@ func BenchmarkDefaultMarshallerUnmarshaller_Marshal(b *testing.B) {
 }
 
 func BenchmarkDefaultMarshallerUnmarshaller_Unmarshal(b *testing.B) {
-	m := DefaultMarshallerUnmarshaller{}
+	m := rediszset.DefaultMarshallerUnmarshaller{}
 
 	msg := message.NewMessage(watermill.NewUUID(), []byte("payload"))
 	msg.Metadata.Set("foo", "bar")
@@ -52,27 +52,10 @@ func BenchmarkDefaultMarshallerUnmarshaller_Unmarshal(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	consumedMsg, err := producerToConsumerMessage(marshaled)
-	if err != nil {
-		b.Fatal(err)
-	}
-
 	for i := 0; i < b.N; i++ {
-		_, err = m.Unmarshal(consumedMsg)
+		_, err = m.Unmarshal(marshaled)
 		if err != nil {
 			b.Fatal(err)
 		}
 	}
-}
-
-func producerToConsumerMessage(producerMessage map[string]interface{}) (map[string]interface{}, error) {
-	res := make(map[string]interface{})
-	for k, v := range producerMessage {
-		if b, ok := v.([]byte); ok {
-			res[k] = string(b)
-		} else {
-			res[k] = v
-		}
-	}
-	return res, nil
 }

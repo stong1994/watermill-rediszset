@@ -1,4 +1,4 @@
-package redisstream
+package rediszset
 
 import (
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -9,11 +9,11 @@ import (
 const UUIDHeaderKey = "_watermill_message_uuid"
 
 type Marshaller interface {
-	Marshal(topic string, msg *message.Message) (map[string]interface{}, error)
+	Marshal(topic string, msg *message.Message) ([]byte, error)
 }
 
 type Unmarshaller interface {
-	Unmarshal(values map[string]interface{}) (msg *message.Message, err error)
+	Unmarshal(values []byte) (msg *message.Message, err error)
 }
 
 type MarshallerUnmarshaller interface {
@@ -23,37 +23,43 @@ type MarshallerUnmarshaller interface {
 
 type DefaultMarshallerUnmarshaller struct{}
 
-func (DefaultMarshallerUnmarshaller) Marshal(_ string, msg *message.Message) (map[string]interface{}, error) {
+func (DefaultMarshallerUnmarshaller) Marshal(_ string, msg *message.Message) ([]byte, error) {
 	if value := msg.Metadata.Get(UUIDHeaderKey); value != "" {
 		return nil, errors.Errorf("metadata %s is reserved by watermill for message UUID", UUIDHeaderKey)
 	}
 
 	var (
-		md  []byte
-		err error
+		metadata []byte
+		err      error
 	)
-	if len(msg.Metadata) > 0 {
-		if md, err = msgpack.Marshal(msg.Metadata); err != nil {
-			return nil, errors.Wrapf(err, "marshal metadata fail")
+	if msg.Metadata != nil {
+		if metadata, err = msgpack.Marshal(msg.Metadata); err != nil {
+			return nil, err
 		}
 	}
 
-	return map[string]interface{}{
+	data := map[string]interface{}{
 		UUIDHeaderKey: msg.UUID,
-		"metadata":    md,
-		"payload":     []byte(msg.Payload),
-	}, nil
+		"metadata":    metadata,
+		"payload":     msg.Payload,
+	}
+	return msgpack.Marshal(data)
 }
 
-func (DefaultMarshallerUnmarshaller) Unmarshal(values map[string]interface{}) (msg *message.Message, err error) {
-	msg = message.NewMessage(values[UUIDHeaderKey].(string), []byte(values["payload"].(string)))
+func (DefaultMarshallerUnmarshaller) Unmarshal(values []byte) (msg *message.Message, err error) {
+	data := make(map[string]interface{})
+	if err = msgpack.Unmarshal(values, &data); err != nil {
+		return
+	}
 
-	md := values["metadata"]
+	msg = message.NewMessage(data[UUIDHeaderKey].(string), data["payload"].([]uint8))
+
+	md := data["metadata"]
 	if md != nil {
-		s := md.(string)
-		if s != "" {
+		s := md.([]uint8)
+		if len(s) > 0 {
 			metadata := make(message.Metadata)
-			if err := msgpack.Unmarshal([]byte(s), &metadata); err != nil {
+			if err = msgpack.Unmarshal(s, &metadata); err != nil {
 				return nil, errors.Wrapf(err, "unmarshal metadata fail")
 			}
 			msg.Metadata = metadata

@@ -1,4 +1,4 @@
-package redisstream
+package rediszset
 
 import (
 	"context"
@@ -71,14 +71,14 @@ func (p *Publisher) Publish(topic string, msgs ...*message.Message) error {
 
 	for _, msg := range msgs {
 		logFields["message_uuid"] = msg.UUID
-		p.logger.Trace("Sending message to redis stream", logFields)
+		p.logger.Trace("Sending message to redis", logFields)
 
 		values, err := p.config.Marshaller.Marshal(topic, msg)
 		if err != nil {
 			return errors.Wrapf(err, "cannot marshal message %s", msg.UUID)
 		}
 
-		score, err := GetScore(msg)
+		score, err := getScore(msg)
 		if err != nil {
 			return errors.Wrapf(err, "cannot get score from message %s", msg.UUID)
 		}
@@ -89,10 +89,10 @@ func (p *Publisher) Publish(topic string, msgs ...*message.Message) error {
 			Member: values,
 		}).Result()
 		if err != nil {
-			return errors.Wrapf(err, "cannot xadd message %s", msg.UUID)
+			return errors.Wrapf(err, "cannot zadd message %s", msg.UUID)
 		}
 
-		p.logger.Trace("Message sent to redis stream", logFields)
+		p.logger.Trace("Message sent to redis", logFields)
 	}
 
 	return nil
