@@ -8,7 +8,7 @@ import (
 
 const scoreKey = "watermill_score"
 
-func getScore(message *message.Message) (float64, error) {
+func GetScore(message *message.Message) (float64, error) {
 	f, err := strconv.ParseFloat(message.Metadata.Get(scoreKey), 64)
 	if err != nil {
 		return 0, errors.Wrapf(err, "should use rediszset.NewMessage since zset need score")
