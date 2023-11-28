@@ -70,7 +70,8 @@ type SubscriberConfig struct {
 	BlockTime time.Duration
 
 	// How long should we rest after got nothing, only works while BlockMode is NotBlock
-	RestTime time.Duration
+	RestTime        time.Duration
+	NackResendSleep time.Duration
 }
 
 func (sc *SubscriberConfig) setDefaults() {
@@ -88,6 +89,10 @@ func (sc *SubscriberConfig) setDefaults() {
 		if sc.BlockTime == 0 {
 			sc.BlockTime = DefaultBlockTime
 		}
+	}
+
+	if sc.NackResendSleep == 0 {
+		sc.NackResendSleep = NoSleep
 	}
 }
 
@@ -255,11 +260,12 @@ func (s *Subscriber) popFn(ctx context.Context, topic string, logFields watermil
 
 func (s *Subscriber) createMessageHandler(output chan *message.Message) messageHandler {
 	return messageHandler{
-		outputChannel: output,
-		rc:            s.client,
-		unmarshaller:  s.config.Unmarshaller,
-		logger:        s.logger,
-		closing:       s.closing,
+		outputChannel:   output,
+		rc:              s.client,
+		unmarshaller:    s.config.Unmarshaller,
+		logger:          s.logger,
+		closing:         s.closing,
+		nackResendSleep: s.config.NackResendSleep,
 	}
 }
 
