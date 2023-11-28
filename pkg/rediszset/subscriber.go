@@ -191,12 +191,9 @@ func (s *Subscriber) consumeZset(ctx context.Context, topic string, output chan 
 }
 
 func (s *Subscriber) read(ctx context.Context, topic string, readChannel chan<- redis.Z, logFields watermill.LogFields) {
-	var (
-		zs       []redis.Z
-		zWithKey *redis.ZWithKey
-		err      error
-	)
 	defer close(readChannel)
+
+	popFn := s.popFn(ctx, topic, logFields)
 
 	for {
 		select {
@@ -205,27 +202,9 @@ func (s *Subscriber) read(ctx context.Context, topic string, readChannel chan<- 
 		case <-ctx.Done():
 			return
 		default:
-			switch s.config.BlockMode {
-			case Block:
-				zWithKey, err = s.client.BZPopMin(ctx, s.config.BlockTime, topic).Result()
-				if err != nil {
-					if errors.Is(err, redis.Nil) {
-						continue
-					}
-					s.logger.Error("read fail", err, logFields)
-					return
-				} else {
-					zs = []redis.Z{zWithKey.Z}
-				}
-			case NotBlock:
-				zs, err = s.client.ZPopMin(ctx, topic).Result()
-				if err != nil {
-					if errors.Is(err, redis.Nil) {
-						continue
-					}
-					s.logger.Error("read fail", err, logFields)
-					return
-				}
+			zs, err := popFn()
+			if err != nil {
+				return
 			}
 			if len(zs) == 0 && s.config.BlockMode == NotBlock {
 				time.Sleep(s.config.RestTime) // rest for a while
@@ -239,6 +218,38 @@ func (s *Subscriber) read(ctx context.Context, topic string, readChannel chan<- 
 			case readChannel <- zs[0]:
 			}
 		}
+	}
+}
+
+func (s *Subscriber) popFn(ctx context.Context, topic string, logFields watermill.LogFields) func() ([]redis.Z, error) {
+	switch s.config.BlockMode {
+	case Block:
+		return func() ([]redis.Z, error) {
+			zWithKey, err := s.client.BZPopMin(ctx, s.config.BlockTime, topic).Result()
+			if err != nil {
+				if errors.Is(err, redis.Nil) {
+					return nil, nil
+				}
+				s.logger.Error("read fail", err, logFields)
+				return nil, err
+			}
+			return []redis.Z{zWithKey.Z}, nil
+		}
+
+	case NotBlock:
+		return func() ([]redis.Z, error) {
+			zs, err := s.client.ZPopMin(ctx, topic).Result()
+			if err != nil {
+				if errors.Is(err, redis.Nil) {
+					return nil, nil
+				}
+				s.logger.Error("read fail", err, logFields)
+				return nil, nil
+			}
+			return zs, nil
+		}
+	default:
+		panic("unkonwn block mode")
 	}
 }
 
