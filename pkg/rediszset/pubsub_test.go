@@ -70,20 +70,6 @@ func newPubSub(t *testing.T, subConfig *rediszset.SubscriberConfig) (message.Pub
 //	tests.TestPubSub(t, features, createPubSub, nil)
 //}
 
-func TestErrorMsg(t *testing.T) {
-	publisher, err := rediszset.NewPublisher(
-		rediszset.PublisherConfig{
-			Client:     redisClientOrFail(t),
-			Marshaller: rediszset.DefaultMarshallerUnmarshaller{},
-		},
-		watermill.NewStdLogger(false, false),
-	)
-	require.NoError(t, err)
-
-	err = publisher.Publish("topic", message.NewMessage("abc", nil))
-	require.Contains(t, err.Error(), "should use rediszset.NewMessage since zset need score")
-}
-
 func TestSubscriber(t *testing.T) {
 	topic := watermill.NewShortUUID()
 
@@ -129,6 +115,56 @@ func TestSubscriber(t *testing.T) {
 
 	require.NoError(t, publisher.Close())
 	require.NoError(t, subscriber.Close())
+}
+
+func TestErrorMsg(t *testing.T) {
+	publisher, err := rediszset.NewPublisher(
+		rediszset.PublisherConfig{
+			Client:     redisClientOrFail(t),
+			Marshaller: rediszset.DefaultMarshallerUnmarshaller{},
+		},
+		watermill.NewStdLogger(false, false),
+	)
+	require.NoError(t, err)
+
+	err = publisher.Publish("topic", message.NewMessage("abc", nil))
+	require.Contains(t, err.Error(), "should use rediszset.NewMessage since zset need score")
+}
+
+func TestErrorResponse(t *testing.T) {
+	topic := "topic"
+	subscriber, err := rediszset.NewSubscriber(
+		notBlockSubConfig(t),
+		watermill.NewStdLogger(true, false),
+	)
+	require.NoError(t, err)
+	messages, err := subscriber.Subscribe(context.Background(), topic)
+	require.NoError(t, err)
+
+	publisher, err := rediszset.NewPublisher(
+		rediszset.PublisherConfig{
+			Client:     redisClientOrFail(t),
+			Marshaller: rediszset.DefaultMarshallerUnmarshaller{},
+		},
+		watermill.NewStdLogger(false, false),
+	)
+	require.NoError(t, err)
+
+	err = publisher.Publish(topic, rediszset.NewMessage("abc", 10, []byte("abc")))
+	require.NoError(t, err)
+
+	for i := 0; i < 10; i++ {
+		msg := <-messages
+		score, err := rediszset.GetScore(msg)
+		require.NoError(t, err)
+		assert.Equal(t, float64(10), score)
+		assert.Equal(t, "abc", string(msg.Payload))
+		if i == 9 {
+			msg.Ack()
+		} else {
+			msg.Nack()
+		}
+	}
 }
 
 func notBlockSubConfig(t *testing.T) rediszset.SubscriberConfig {
