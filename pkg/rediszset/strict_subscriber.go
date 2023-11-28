@@ -170,18 +170,15 @@ func (s *StrictSubscriber) consume(ctx context.Context, topic string, output cha
 		return nil
 	}
 	handler := s.createMessageHandler(output)
-	if err = handler.processMessage(ctx, topic, data, logFields); err != nil {
+	if err = handler.processMessage(ctx, topic, data[0], logFields); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *StrictSubscriber) getData(ctx context.Context, topic string, logFields watermill.LogFields) ([]string, error) {
-	data, err := s.client.ZRange(ctx, topic, 0, 0).Result()
+func (s *StrictSubscriber) getData(ctx context.Context, topic string, logFields watermill.LogFields) ([]redis.Z, error) {
+	data, err := s.client.ZRangeWithScores(ctx, topic, 0, 0).Result()
 	if err != nil {
-		if errors.Is(err, redis.Nil) { // todo
-			return nil, nil
-		}
 		s.logger.Error("read fail", err, logFields)
 		return nil, err
 	}
@@ -227,15 +224,16 @@ type strictMessageHandler struct {
 	closing chan struct{}
 }
 
-func (h *strictMessageHandler) processMessage(ctx context.Context, topic string, data []string, messageLogFields watermill.LogFields) error {
+func (h *strictMessageHandler) processMessage(ctx context.Context, topic string, data redis.Z, messageLogFields watermill.LogFields) error {
+	score, value := data.Score, data.Member.(string)
 	receivedMsgLogFields := messageLogFields.Add(watermill.LogFields{
-		"zscore": data[1],
+		"zscore": score,
 		"topic":  topic,
 	})
 
 	h.logger.Trace("Received message from redis zset", receivedMsgLogFields)
 
-	msg, err := h.unmarshaller.Unmarshal([]byte(data[0]))
+	msg, err := h.unmarshaller.Unmarshal([]byte(value))
 	if err != nil {
 		return errors.Wrapf(err, "message unmarshal failed")
 	}
@@ -261,7 +259,7 @@ func (h *strictMessageHandler) processMessage(ctx context.Context, topic string,
 
 	select {
 	case <-msg.Acked():
-		_, err := h.rc.ZRem(ctx, topic, data[0]).Result()
+		_, err := h.rc.ZRem(ctx, topic, value).Result()
 		if err != nil {
 			h.logger.Error("zrem faield", err, receivedMsgLogFields)
 			return err
