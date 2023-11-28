@@ -5,6 +5,7 @@ import (
 	"github.com/stong1994/watermill-rediszset/pkg/rediszset"
 	"github.com/stretchr/testify/assert"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -165,6 +166,63 @@ func TestErrorResponse(t *testing.T) {
 			msg.Nack()
 		}
 	}
+}
+
+func TestMultiConsumer(t *testing.T) {
+	topic := "topic"
+	subscriber1, err := rediszset.NewSubscriber(
+		notBlockSubConfig(t),
+		watermill.NewStdLogger(true, false),
+	)
+	require.NoError(t, err)
+	messages1, err := subscriber1.Subscribe(context.Background(), topic)
+	require.NoError(t, err)
+
+	subscriber2, err := rediszset.NewSubscriber(
+		notBlockSubConfig(t),
+		watermill.NewStdLogger(true, false),
+	)
+	require.NoError(t, err)
+	messages2, err := subscriber2.Subscribe(context.Background(), topic)
+	require.NoError(t, err)
+
+	publisher, err := rediszset.NewPublisher(
+		rediszset.PublisherConfig{
+			Client:     redisClientOrFail(t),
+			Marshaller: rediszset.DefaultMarshallerUnmarshaller{},
+		},
+		watermill.NewStdLogger(false, false),
+	)
+	require.NoError(t, err)
+
+	for i := 0; i < 100; i++ {
+		err = publisher.Publish(topic, rediszset.NewMessage("abc", float64(i), []byte(strconv.Itoa(i))))
+		require.NoError(t, err)
+	}
+
+	counter := new(atomic.Uint64)
+
+	go func() {
+		for m := range messages1 {
+			counter.Add(1)
+			m.Ack()
+		}
+	}()
+	go func() {
+		for m := range messages2 {
+			counter.Add(1)
+			m.Ack()
+		}
+	}()
+
+	require.Eventually(
+		t,
+		func() bool {
+			return counter.Load() == 100
+		},
+		time.Second*5,
+		time.Millisecond*100,
+	)
 }
 
 func notBlockSubConfig(t *testing.T) rediszset.SubscriberConfig {

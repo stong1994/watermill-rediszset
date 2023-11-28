@@ -38,7 +38,7 @@ type Subscriber struct {
 	closeMutex sync.Mutex
 }
 
-// NewSubscriber creates a new redis stream Subscriber.
+// NewSubscriber creates a new redis zset Subscriber.
 func NewSubscriber(config SubscriberConfig, logger watermill.LoggerAdapter) (*Subscriber, error) {
 	config.setDefaults()
 
@@ -183,10 +183,10 @@ func (s *Subscriber) consumeZset(ctx context.Context, topic string, output chan 
 					return
 				}
 			case <-s.closing:
-				s.logger.Debug("Subscriber is closing, stopping readStream", logFields)
+				s.logger.Debug("Subscriber is closing, stopping readZset", logFields)
 				return
 			case <-ctx.Done():
-				s.logger.Debug("Ctx was cancelled, stopping readStream", logFields)
+				s.logger.Debug("Ctx was cancelled, stopping readZset", logFields)
 				return
 			}
 		}
@@ -285,7 +285,7 @@ func (s *Subscriber) Close() error {
 		return err
 	}
 
-	s.logger.Debug("Redis stream subscriber closed", nil)
+	s.logger.Debug("Redis zset subscriber closed", nil)
 
 	return nil
 }
@@ -306,7 +306,7 @@ func (h *messageHandler) processMessage(ctx context.Context, topic string, z red
 		"zscore": z.Score,
 	})
 
-	h.logger.Trace("Received message from redis stream", receivedMsgLogFields)
+	h.logger.Trace("Received message from redis zset", receivedMsgLogFields)
 
 	msg, err := h.unmarshaller.Unmarshal([]byte(z.Member.(string)))
 	if err != nil {
