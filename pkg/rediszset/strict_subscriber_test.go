@@ -130,6 +130,38 @@ func TestStrictSubscriber_Lock(t *testing.T) {
 	require.Equal(t, uint64(0), counter.Load())
 }
 
+func TestStrictSubscriber_Nack(t *testing.T) {
+	topic := shortuuid.New()
+	locker := memoryLocker()
+
+	publisher, err := rediszset.NewPublisher(
+		rediszset.PublisherConfig{
+			Client:     redisClientOrFail(t),
+			Marshaller: rediszset.DefaultMarshallerUnmarshaller{},
+		},
+		watermill.NewStdLogger(false, false),
+	)
+	require.NoError(t, err)
+	err = publisher.Publish(topic, rediszset.NewMessage("abc", 0, []byte("abc")))
+	require.NoError(t, err)
+
+	subscriber, err := rediszset.NewStrictSubscriber(
+		strictSubConfig(t),
+		locker,
+		watermill.NewStdLogger(true, false),
+	)
+	messages, err := subscriber.Subscribe(context.Background(), topic)
+	require.NoError(t, err)
+	count := 0
+	for i := 0; i < 10; i++ {
+		msg := <-messages
+		require.Equal(t, "abc", string(msg.Payload))
+		msg.Nack()
+		count++
+	}
+	require.Equal(t, 10, count)
+}
+
 type memlocker struct {
 	locker sync.Mutex
 }
