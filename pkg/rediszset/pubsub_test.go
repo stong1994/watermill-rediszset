@@ -3,6 +3,7 @@ package rediszset_test
 import (
 	"context"
 	"github.com/stong1994/watermill-rediszset/pkg/rediszset"
+	"strconv"
 	"testing"
 	"time"
 
@@ -104,7 +105,8 @@ func TestSubscriber(t *testing.T) {
 
 	var sentMsgs message.Messages
 	for i := 0; i < 50; i++ {
-		msg := rediszset.NewMessage(watermill.NewShortUUID(), float64(i), []byte("abc"))
+		msg := rediszset.NewMessage(watermill.NewShortUUID(), float64(i), []byte(strconv.Itoa(i)))
+
 		require.NoError(t, publisher.Publish(topic, msg))
 		sentMsgs = append(sentMsgs, msg)
 	}
@@ -115,6 +117,7 @@ func TestSubscriber(t *testing.T) {
 		if msg == nil {
 			t.Fatal("msg nil")
 		}
+		require.Equal(t, strconv.Itoa(i), string(msg.Payload))
 		receivedMsgs = append(receivedMsgs, msg)
 		msg.Ack()
 	}
