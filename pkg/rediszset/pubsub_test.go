@@ -3,6 +3,7 @@ package rediszset_test
 import (
 	"context"
 	"github.com/stong1994/watermill-rediszset/pkg/rediszset"
+	"github.com/stretchr/testify/assert"
 	"strconv"
 	"testing"
 	"time"
@@ -118,6 +119,9 @@ func TestSubscriber(t *testing.T) {
 			t.Fatal("msg nil")
 		}
 		require.Equal(t, strconv.Itoa(i), string(msg.Payload))
+		score, err := rediszset.GetScore(msg)
+		require.NoError(t, err)
+		assert.Equal(t, float64(i), score)
 		receivedMsgs = append(receivedMsgs, msg)
 		msg.Ack()
 	}
