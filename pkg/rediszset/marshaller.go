@@ -1,9 +1,12 @@
 package rediszset
 
 import (
+	"fmt"
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/vmihailenco/msgpack"
+	"strings"
 )
 
 const UUIDHeaderKey = "_watermill_message_uuid"
@@ -66,6 +69,21 @@ func (DefaultMarshallerUnmarshaller) Unmarshal(values []byte) (msg *message.Mess
 		}
 
 	}
+
+	return msg, nil
+}
+
+type WithoutTraceMarshallerUnmarshaller struct{}
+
+func (WithoutTraceMarshallerUnmarshaller) Marshal(_ string, msg *message.Message) ([]byte, error) {
+	return []byte(fmt.Sprintf("%s_%s", msg.Metadata[scoreKey], string(msg.Payload))), nil
+}
+
+func (WithoutTraceMarshallerUnmarshaller) Unmarshal(values []byte) (msg *message.Message, err error) {
+	val := strings.SplitN(string(values), "_", 2)
+
+	msg = message.NewMessage(uuid.NewString(), []byte(val[1]))
+	msg.Metadata = message.Metadata{scoreKey: val[0]}
 
 	return msg, nil
 }

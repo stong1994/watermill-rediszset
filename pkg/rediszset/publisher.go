@@ -2,6 +2,7 @@ package rediszset
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/ThreeDotsLabs/watermill"
@@ -57,7 +58,7 @@ func (c *PublisherConfig) Validate() error {
 	return nil
 }
 
-// Publish publishes message to redis stream
+// Publish publishes message to redis zset
 //
 // Publish is blocking and waits for redis response.
 // When any of messages delivery fails - function is interrupted.
@@ -95,6 +96,34 @@ func (p *Publisher) Publish(topic string, msgs ...*message.Message) error {
 		p.logger.Trace("Message sent to redis", logFields)
 	}
 
+	return nil
+}
+
+// Remove message from redis zset
+// Pay attention to Marshaller. It should not contain trace info. You can use WithoutTraceMarshallerUnmarshaller.
+func (p *Publisher) Remove(topic string, msgs ...*message.Message) error {
+	if p.closed {
+		return errors.New("publisher closed")
+	}
+
+	logFields := make(watermill.LogFields, 3)
+	logFields["topic"] = topic
+
+	for _, msg := range msgs {
+		p.logger.Trace("Sending message to redis", logFields)
+
+		values, err := p.config.Marshaller.Marshal(topic, msg)
+		if err != nil {
+			return errors.Wrapf(err, "cannot marshal message %s", msg.UUID)
+		}
+		logFields["zrem_member"] = string(values)
+
+		cnt, err := p.client.ZRem(context.Background(), topic, string(values)).Result()
+		if err != nil {
+			return errors.Wrapf(err, "cannot rem message %s", string(values))
+		}
+		p.logger.Trace(fmt.Sprintf("Message removed from redis, cnt: %d", cnt), logFields)
+	}
 	return nil
 }
 

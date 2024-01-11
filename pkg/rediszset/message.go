@@ -18,6 +18,6 @@ func GetScore(message *message.Message) (float64, error) {
 
 func NewMessage(uuid string, score float64, payload message.Payload) *message.Message {
 	msg := message.NewMessage(uuid, payload)
-	msg.Metadata.Set(scoreKey, strconv.FormatFloat(score, 'E', -1, 64))
+	msg.Metadata.Set(scoreKey, strconv.FormatFloat(score, 'f', -1, 64))
 	return msg
 }
