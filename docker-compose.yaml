@@ -8,3 +8,8 @@ services:
     ports:
       - 6379:6379
     restart: unless-stopped
+  redis4.0:
+    image: redis:4.0.10
+    ports:
+      - 6379:6379
+    restart: unless-stopped

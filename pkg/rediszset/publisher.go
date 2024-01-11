@@ -18,6 +18,8 @@ type Publisher struct {
 
 	closed     bool
 	closeMutex sync.Mutex
+
+	version [3]int
 }
 
 // NewPublisher creates a new redis stream Publisher.
@@ -31,12 +33,21 @@ func NewPublisher(config PublisherConfig, logger watermill.LoggerAdapter) (*Publ
 	if logger == nil {
 		logger = &watermill.NopLogger{}
 	}
+	result, err := config.Client.Info(context.Background()).Result()
+	if err != nil {
+		return nil, err
+	}
+	version, err := getVersion(result)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Publisher{
-		config: config,
-		client: config.Client,
-		logger: logger,
-		closed: false,
+		config:  config,
+		client:  config.Client,
+		logger:  logger,
+		closed:  false,
+		version: version,
 	}, nil
 }
 
