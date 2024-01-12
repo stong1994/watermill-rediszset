@@ -13,13 +13,11 @@ import (
 
 type Publisher struct {
 	config PublisherConfig
-	client redis.UniversalClient
+	client Client
 	logger watermill.LoggerAdapter
 
 	closed     bool
 	closeMutex sync.Mutex
-
-	version [3]int
 }
 
 // NewPublisher creates a new redis stream Publisher.
@@ -41,13 +39,13 @@ func NewPublisher(config PublisherConfig, logger watermill.LoggerAdapter) (*Publ
 	if err != nil {
 		return nil, err
 	}
+	client := NewClient(config.Client, version)
 
 	return &Publisher{
-		config:  config,
-		client:  config.Client,
-		logger:  logger,
-		closed:  false,
-		version: version,
+		config: config,
+		client: client,
+		logger: logger,
+		closed: false,
 	}, nil
 }
 
@@ -99,7 +97,7 @@ func (p *Publisher) Publish(topic string, msgs ...*message.Message) error {
 		_, err = p.client.ZAdd(context.Background(), topic, redis.Z{
 			Score:  score,
 			Member: values,
-		}).Result()
+		})
 		if err != nil {
 			return errors.Wrapf(err, "cannot zadd message %s", msg.UUID)
 		}
@@ -117,7 +115,7 @@ func (p *Publisher) Remove(topic string, msgs ...*message.Message) error {
 		return errors.New("publisher closed")
 	}
 
-	logFields := make(watermill.LogFields, 3)
+	logFields := make(watermill.LogFields, 2)
 	logFields["topic"] = topic
 
 	for _, msg := range msgs {
@@ -129,7 +127,7 @@ func (p *Publisher) Remove(topic string, msgs ...*message.Message) error {
 		}
 		logFields["zrem_member"] = string(values)
 
-		cnt, err := p.client.ZRem(context.Background(), topic, string(values)).Result()
+		cnt, err := p.client.ZRem(context.Background(), topic, string(values))
 		if err != nil {
 			return errors.Wrapf(err, "cannot rem message %s", string(values))
 		}

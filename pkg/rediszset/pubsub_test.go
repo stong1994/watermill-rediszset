@@ -197,7 +197,7 @@ func TestErrorMsg(t *testing.T) {
 }
 
 func TestErrorResponse(t *testing.T) {
-	topic := "topic"
+	topic := watermill.NewShortUUID()
 	subscriber, err := rediszset.NewSubscriber(
 		notBlockSubConfig(t),
 		watermill.NewStdLogger(true, false),
@@ -233,7 +233,7 @@ func TestErrorResponse(t *testing.T) {
 }
 
 func TestMultiConsumer(t *testing.T) {
-	topic := "topic"
+	topic := watermill.NewShortUUID()
 	subscriber1, err := rediszset.NewSubscriber(
 		notBlockSubConfig(t),
 		watermill.NewStdLogger(true, false),

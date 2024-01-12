@@ -29,7 +29,7 @@ const (
 
 type Subscriber struct {
 	config        SubscriberConfig
-	client        redis.UniversalClient
+	client        Client
 	logger        watermill.LoggerAdapter
 	closing       chan struct{}
 	subscribersWg sync.WaitGroup
@@ -49,10 +49,18 @@ func NewSubscriber(config SubscriberConfig, logger watermill.LoggerAdapter) (*Su
 	if logger == nil {
 		logger = &watermill.NopLogger{}
 	}
-
+	result, err := config.Client.Info(context.Background()).Result()
+	if err != nil {
+		return nil, err
+	}
+	version, err := getVersion(result)
+	if err != nil {
+		return nil, err
+	}
+	client := NewClient(config.Client, version)
 	return &Subscriber{
 		config:  config,
-		client:  config.Client,
+		client:  client,
 		logger:  logger,
 		closing: make(chan struct{}),
 	}, nil
@@ -230,7 +238,7 @@ func (s *Subscriber) popFn(ctx context.Context, topic string, logFields watermil
 	switch s.config.BlockMode {
 	case Block:
 		return func() ([]redis.Z, error) {
-			zWithKey, err := s.client.BZPopMin(ctx, s.config.BlockTime, topic).Result()
+			zWithKey, err := s.client.BZPopMin(ctx, s.config.BlockTime, topic)
 			if err != nil {
 				if errors.Is(err, redis.Nil) {
 					return nil, nil
@@ -243,7 +251,7 @@ func (s *Subscriber) popFn(ctx context.Context, topic string, logFields watermil
 
 	case NotBlock:
 		return func() ([]redis.Z, error) {
-			zs, err := s.client.ZPopMin(ctx, topic).Result()
+			zs, err := s.client.ZPopMin(ctx, topic)
 			if err != nil {
 				if errors.Is(err, redis.Nil) {
 					return nil, nil
@@ -261,7 +269,6 @@ func (s *Subscriber) popFn(ctx context.Context, topic string, logFields watermil
 func (s *Subscriber) createMessageHandler(output chan *message.Message) messageHandler {
 	return messageHandler{
 		outputChannel:   output,
-		rc:              s.client,
 		unmarshaller:    s.config.Unmarshaller,
 		logger:          s.logger,
 		closing:         s.closing,
@@ -292,7 +299,6 @@ func (s *Subscriber) Close() error {
 
 type messageHandler struct {
 	outputChannel chan<- *message.Message
-	rc            redis.UniversalClient
 	unmarshaller  Unmarshaller
 
 	nackResendSleep time.Duration
