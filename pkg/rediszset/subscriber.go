@@ -93,7 +93,7 @@ func (sc *SubscriberConfig) setDefaults() {
 		}
 	}
 
-	if sc.BlockMode == NotBlock {
+	if sc.BlockMode == Block {
 		if sc.BlockTime == 0 {
 			sc.BlockTime = DefaultBlockTime
 		}
@@ -245,6 +245,9 @@ func (s *Subscriber) popFn(ctx context.Context, topic string, logFields watermil
 				}
 				s.logger.Error("read fail", err, logFields)
 				return nil, err
+			}
+			if zWithKey == nil {
+				return nil, nil
 			}
 			return []redis.Z{zWithKey.Z}, nil
 		}
