@@ -219,8 +219,10 @@ func (s *Subscriber) read(ctx context.Context, topic string, readChannel chan<- 
 			if err != nil {
 				return
 			}
-			if len(zs) == 0 && s.config.BlockMode == NotBlock {
-				time.Sleep(s.config.RestTime) // rest for a while
+			if len(zs) == 0 {
+				if s.config.BlockMode == NotBlock {
+					time.Sleep(s.config.RestTime) // rest for a while
+				}
 				continue
 			}
 			select {
