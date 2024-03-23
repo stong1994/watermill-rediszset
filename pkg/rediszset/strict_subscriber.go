@@ -58,7 +58,7 @@ type StrictSubscriberConfig struct {
 
 	Unmarshaller Unmarshaller
 
-	// How long should we rest after got nothing, only works while BlockMode is NotBlock
+	// How long should we rest after got nothing
 	RestTime time.Duration
 }
 
@@ -167,6 +167,7 @@ func (s *StrictSubscriber) consume(ctx context.Context, topic string, output cha
 		return err
 	}
 	if len(data) == 0 {
+		time.Sleep(s.config.RestTime)
 		return nil
 	}
 	handler := s.createMessageHandler(output)
