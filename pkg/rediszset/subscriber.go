@@ -22,7 +22,7 @@ const (
 	// NoSleep can be set to SubscriberConfig.NackResendSleep
 	NoSleep time.Duration = -1
 
-	DefaultBlockTime = time.Millisecond * 100
+	DefaultBlockTime = time.Second
 
 	DefaultRestTime = time.Millisecond * 100
 )
