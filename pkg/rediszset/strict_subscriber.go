@@ -60,6 +60,9 @@ type StrictSubscriberConfig struct {
 
 	// How long should we rest after got nothing
 	RestTime time.Duration
+
+	// After a failed consumption, the strictMessageHandler will receive a nack, and it is better to wait for some time before retrying.
+	NackResendSleep time.Duration
 }
 
 func (sc *StrictSubscriberConfig) setDefaults() {
@@ -69,6 +72,9 @@ func (sc *StrictSubscriberConfig) setDefaults() {
 
 	if sc.RestTime == 0 {
 		sc.RestTime = DefaultRestTime
+	}
+	if sc.NackResendSleep == 0 {
+		sc.NackResendSleep = NoSleep
 	}
 }
 
@@ -188,11 +194,12 @@ func (s *StrictSubscriber) getData(ctx context.Context, topic string, logFields 
 
 func (s *StrictSubscriber) createMessageHandler(output chan *message.Message) strictMessageHandler {
 	return strictMessageHandler{
-		outputChannel: output,
-		rc:            s.client,
-		unmarshaller:  s.config.Unmarshaller,
-		logger:        s.logger,
-		closing:       s.closing,
+		outputChannel:   output,
+		rc:              s.client,
+		unmarshaller:    s.config.Unmarshaller,
+		nackResendSleep: s.config.NackResendSleep,
+		logger:          s.logger,
+		closing:         s.closing,
 	}
 }
 
@@ -220,6 +227,8 @@ type strictMessageHandler struct {
 	outputChannel chan<- *message.Message
 	rc            redis.UniversalClient
 	unmarshaller  Unmarshaller
+
+	nackResendSleep time.Duration
 
 	logger  watermill.LoggerAdapter
 	closing chan struct{}
@@ -268,6 +277,9 @@ func (h *strictMessageHandler) processMessage(ctx context.Context, topic string,
 		h.logger.Trace("Message Acked", receivedMsgLogFields)
 	case <-msg.Nacked():
 		h.logger.Trace("Message Nacked", receivedMsgLogFields)
+		if h.nackResendSleep != NoSleep {
+			time.Sleep(h.nackResendSleep)
+		}
 	case <-h.closing:
 		h.logger.Trace("Closing, message discarded before ack", receivedMsgLogFields)
 		return nil
