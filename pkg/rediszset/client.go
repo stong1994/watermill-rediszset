@@ -2,6 +2,7 @@ package rediszset
 
 import (
 	"context"
+	"errors"
 	"github.com/redis/go-redis/v9"
 	"strconv"
 	"time"
@@ -104,6 +105,9 @@ func (c Client2_0) BZPopMin(ctx context.Context, timeout time.Duration, keys ...
 			default:
 				data, err := zpop(ctx, c.client, key, "1")
 				if err != nil {
+					if errors.Is(err, context.DeadlineExceeded) { // To clarify, BZPopMin will not respond with an error due to a timeout, which could result in the closure of the pub/sub channel.
+						return nil, nil
+					}
 					return nil, err
 				}
 				if len(data) == 0 {
