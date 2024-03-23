@@ -132,7 +132,7 @@ func redisPubSub() (*rediszset.Publisher, *rediszset.StrictSubscriber) {
 	pub, err := rediszset.NewPublisher(
 		rediszset.PublisherConfig{
 			Client:     client,
-			Marshaller: rediszset.WithoutTraceMarshallerUnmarshaller{},
+			Marshaller: rediszset.WithoutScoreMarshallerUnmarshaller{},
 		},
 		logger,
 	)
@@ -142,7 +142,7 @@ func redisPubSub() (*rediszset.Publisher, *rediszset.StrictSubscriber) {
 	sub, err := rediszset.NewStrictSubscriber(
 		rediszset.StrictSubscriberConfig{
 			Client:          client,
-			Unmarshaller:    rediszset.WithoutTraceMarshallerUnmarshaller{},
+			Unmarshaller:    rediszset.WithoutScoreMarshallerUnmarshaller{},
 			RestTime:        time.Second,
 			NackResendSleep: time.Second,
 		},
@@ -159,9 +159,9 @@ type SimpleLocker struct {
 	client redis.UniversalClient
 }
 
-func (l SimpleLocker) Lock() error {
+func (l SimpleLocker) Lock(ctx context.Context) error {
 	for {
-		got, err := l.client.SetNX(context.Background(), "lock_key", 1, time.Second).Result()
+		got, err := l.client.SetNX(ctx, "lock_key", 1, time.Second).Result()
 		if err != nil {
 			return err
 		}
@@ -171,6 +171,6 @@ func (l SimpleLocker) Lock() error {
 	}
 }
 
-func (l SimpleLocker) Unlock() {
-	l.client.Del(context.Background(), "lock_key")
+func (l SimpleLocker) Unlock(ctx context.Context) error {
+	return l.client.Del(ctx, "lock_key").Err()
 }

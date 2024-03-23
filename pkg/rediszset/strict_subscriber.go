@@ -13,8 +13,8 @@ import (
 )
 
 type Locker interface {
-	Lock() error
-	Unlock()
+	Lock(ctx context.Context) error
+	Unlock(ctx context.Context) error
 }
 
 type StrictSubscriber struct {
@@ -163,11 +163,11 @@ func (s *StrictSubscriber) consumeZset(ctx context.Context, topic string, output
 }
 
 func (s *StrictSubscriber) consume(ctx context.Context, topic string, output chan *message.Message, logFields watermill.LogFields) error {
-	if err := s.locker.Lock(); err != nil {
+	if err := s.locker.Lock(ctx); err != nil {
 		s.logger.Error("get lock failed", err, logFields)
 		return err
 	}
-	defer s.locker.Unlock()
+	defer s.locker.Unlock(ctx)
 	data, err := s.getData(ctx, topic, logFields)
 	if err != nil {
 		return err
@@ -239,12 +239,14 @@ func (h *strictMessageHandler) processMessage(ctx context.Context, topic string,
 	receivedMsgLogFields := messageLogFields.Add(watermill.LogFields{
 		"zscore": score,
 		"topic":  topic,
+		"member": data.Member,
 	})
 
 	h.logger.Trace("Received message from redis zset", receivedMsgLogFields)
 
 	msg, err := h.unmarshaller.Unmarshal([]byte(value))
 	if err != nil {
+		h.logger.Error("message unmarshal failed", err, receivedMsgLogFields)
 		return errors.Wrapf(err, "message unmarshal failed")
 	}
 

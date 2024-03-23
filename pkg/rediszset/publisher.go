@@ -109,7 +109,7 @@ func (p *Publisher) Publish(topic string, msgs ...*message.Message) error {
 }
 
 // Remove message from redis zset
-// Pay attention to Marshaller. It should not contain trace info. You can use WithoutTraceMarshallerUnmarshaller.
+// Pay attention to Marshaller. It should not contain trace info and score. You can use WithoutScoreMarshallerUnmarshaller.
 func (p *Publisher) Remove(topic string, msgs ...*message.Message) error {
 	if p.closed {
 		return errors.New("publisher closed")
@@ -119,7 +119,7 @@ func (p *Publisher) Remove(topic string, msgs ...*message.Message) error {
 	logFields["topic"] = topic
 
 	for _, msg := range msgs {
-		p.logger.Trace("Sending message to redis", logFields)
+		p.logger.Trace("Removing message from redis", logFields)
 
 		values, err := p.config.Marshaller.Marshal(topic, msg)
 		if err != nil {

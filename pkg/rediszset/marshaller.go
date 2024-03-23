@@ -84,6 +84,16 @@ func (WithoutTraceMarshallerUnmarshaller) Unmarshal(values []byte) (msg *message
 
 	msg = message.NewMessage(uuid.NewString(), []byte(val[1]))
 	msg.Metadata = message.Metadata{scoreKey: val[0]}
+	return msg, nil
+}
 
+type WithoutScoreMarshallerUnmarshaller struct{}
+
+func (WithoutScoreMarshallerUnmarshaller) Marshal(_ string, msg *message.Message) ([]byte, error) {
+	return msg.Payload, nil
+}
+
+func (WithoutScoreMarshallerUnmarshaller) Unmarshal(values []byte) (msg *message.Message, err error) {
+	msg = NewMessage(uuid.NewString(), 0, values)
 	return msg, nil
 }
