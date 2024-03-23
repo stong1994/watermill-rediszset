@@ -78,7 +78,9 @@ type SubscriberConfig struct {
 	BlockTime time.Duration
 
 	// How long should we rest after got nothing, only works while BlockMode is NotBlock
-	RestTime        time.Duration
+	RestTime time.Duration
+
+	// After a failed consumption, the messageHandler will receive a nack, and it is better to wait for some time before retrying.
 	NackResendSleep time.Duration
 }
 
