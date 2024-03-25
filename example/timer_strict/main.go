@@ -159,15 +159,13 @@ type SimpleLocker struct {
 	client redis.UniversalClient
 }
 
-func (l SimpleLocker) Lock(ctx context.Context) error {
+func (l SimpleLocker) Lock(ctx context.Context) (bool, error) {
 	for {
 		got, err := l.client.SetNX(ctx, "lock_key", 1, time.Second).Result()
 		if err != nil {
-			return err
+			return false, err
 		}
-		if got {
-			return nil
-		}
+		return got, nil
 	}
 }
 

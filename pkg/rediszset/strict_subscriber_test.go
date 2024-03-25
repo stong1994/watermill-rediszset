@@ -238,9 +238,9 @@ type memlocker struct {
 	locker sync.Mutex
 }
 
-func (m *memlocker) Lock(ctx context.Context) error {
+func (m *memlocker) Lock(ctx context.Context) (bool, error) {
 	m.locker.Lock()
-	return nil
+	return true, nil
 }
 
 func (m *memlocker) Unlock(ctx context.Context) error {

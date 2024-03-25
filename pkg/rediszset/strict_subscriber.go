@@ -13,7 +13,7 @@ import (
 )
 
 type Locker interface {
-	Lock(ctx context.Context) error
+	Lock(ctx context.Context) (locked bool, err error)
 	Unlock(ctx context.Context) error
 }
 
@@ -163,9 +163,13 @@ func (s *StrictSubscriber) consumeZset(ctx context.Context, topic string, output
 }
 
 func (s *StrictSubscriber) consume(ctx context.Context, topic string, output chan *message.Message, logFields watermill.LogFields) error {
-	if err := s.locker.Lock(ctx); err != nil {
+	locked, err := s.locker.Lock(ctx)
+	if err != nil {
 		s.logger.Error("get lock failed", err, logFields)
 		return err
+	}
+	if !locked {
+		return nil
 	}
 	defer s.locker.Unlock(ctx)
 	data, err := s.getData(ctx, topic, logFields)
