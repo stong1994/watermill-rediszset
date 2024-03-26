@@ -78,6 +78,73 @@ func TestStrictSubscriber_NoDataLose(t *testing.T) {
 	)
 }
 
+func TestStrictSubscriber_NoConsumeBefore(t *testing.T) {
+	topic := shortuuid.New()
+	locker := memoryLocker()
+	subscriber, err := rediszset.NewStrictSubscriber(
+		rediszset.StrictSubscriberConfig{
+			Client:       redisClientOrFail(t),
+			Unmarshaller: rediszset.WithoutScoreMarshallerUnmarshaller{},
+			RestTime:     100 * time.Millisecond,
+			ConsumeFn: func(topic string) (start, end string, err error) {
+				return "-inf", strconv.FormatInt(time.Now().Unix(), 10), nil
+			},
+		},
+		locker,
+		watermill.NewStdLogger(true, false),
+	)
+	messages1, err := subscriber.Subscribe(context.Background(), topic)
+	require.NoError(t, err)
+
+	publisher, err := rediszset.NewPublisher(
+		rediszset.PublisherConfig{
+			Client:     redisClientOrFail(t),
+			Marshaller: rediszset.WithoutScoreMarshallerUnmarshaller{},
+		},
+		watermill.NewStdLogger(false, false),
+	)
+	require.NoError(t, err)
+
+	err = publisher.Publish(topic, rediszset.NewMessage("abc", float64(time.Now().Add(time.Second*10).Unix()), []byte("hi")))
+	require.NoError(t, err)
+
+	counter := new(atomic.Uint64)
+
+	go func() {
+		for m := range messages1 {
+			counter.Add(1)
+			m.Ack()
+		}
+	}()
+
+	require.Eventuallyf(
+		t,
+		func() bool {
+			remain, err := redisClientOrFail(t).ZCard(context.Background(), topic).Result()
+			require.NoError(t, err)
+			t.Log("remain", remain, "counter", counter.Load())
+			return 1 == remain && counter.Load() == 0
+		},
+		time.Second*5,
+		time.Millisecond*100,
+		"want 0 got %d",
+		counter.Load(),
+	)
+
+	require.Eventuallyf(
+		t,
+		func() bool {
+			remain, err := redisClientOrFail(t).ZCard(context.Background(), topic).Result()
+			require.NoError(t, err)
+			return 0 == remain && counter.Load() == 1
+		},
+		time.Second*10,
+		time.Millisecond*100,
+		"want 1 got %d",
+		counter.Load(),
+	)
+}
+
 func TestStrictSubscriber_Remove(t *testing.T) {
 	topic := watermill.NewShortUUID()
 

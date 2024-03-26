@@ -17,6 +17,12 @@ type Locker interface {
 	Unlock(ctx context.Context) error
 }
 
+type ConsumeRange func(topic string) (min, max string, err error)
+
+var DefaultConsumeRange = func(topic string) (min, max string, err error) {
+	return "-inf", "+inf", nil
+}
+
 type StrictSubscriber struct {
 	config  StrictSubscriberConfig
 	client  redis.UniversalClient
@@ -63,6 +69,8 @@ type StrictSubscriberConfig struct {
 
 	// After a failed consumption, the strictMessageHandler will receive a nack, and it is better to wait for some time before retrying.
 	NackResendSleep time.Duration
+
+	ConsumeFn ConsumeRange
 }
 
 func (sc *StrictSubscriberConfig) setDefaults() {
@@ -75,6 +83,9 @@ func (sc *StrictSubscriberConfig) setDefaults() {
 	}
 	if sc.NackResendSleep == 0 {
 		sc.NackResendSleep = NoSleep
+	}
+	if sc.ConsumeFn == nil {
+		sc.ConsumeFn = DefaultConsumeRange
 	}
 }
 
@@ -188,7 +199,16 @@ func (s *StrictSubscriber) consume(ctx context.Context, topic string, output cha
 }
 
 func (s *StrictSubscriber) getData(ctx context.Context, topic string, logFields watermill.LogFields) ([]redis.Z, error) {
-	data, err := s.client.ZRangeWithScores(ctx, topic, 0, 0).Result()
+	minScore, maxScore, err := s.config.ConsumeFn(topic)
+	if err != nil {
+		return nil, err
+	}
+	data, err := s.client.ZRangeByScoreWithScores(ctx, topic, &redis.ZRangeBy{
+		Min:    minScore,
+		Max:    maxScore,
+		Offset: 0,
+		Count:  1,
+	}).Result()
 	if err != nil {
 		s.logger.Error("read fail", err, logFields)
 		return nil, err
