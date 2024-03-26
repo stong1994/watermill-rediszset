@@ -70,7 +70,7 @@ type StrictSubscriberConfig struct {
 	// After a failed consumption, the strictMessageHandler will receive a nack, and it is better to wait for some time before retrying.
 	NackResendSleep time.Duration
 
-	ConsumeFn ConsumeRange
+	ConsumeRange ConsumeRange
 }
 
 func (sc *StrictSubscriberConfig) setDefaults() {
@@ -84,8 +84,8 @@ func (sc *StrictSubscriberConfig) setDefaults() {
 	if sc.NackResendSleep == 0 {
 		sc.NackResendSleep = NoSleep
 	}
-	if sc.ConsumeFn == nil {
-		sc.ConsumeFn = DefaultConsumeRange
+	if sc.ConsumeRange == nil {
+		sc.ConsumeRange = DefaultConsumeRange
 	}
 }
 
@@ -199,7 +199,7 @@ func (s *StrictSubscriber) consume(ctx context.Context, topic string, output cha
 }
 
 func (s *StrictSubscriber) getData(ctx context.Context, topic string, logFields watermill.LogFields) ([]redis.Z, error) {
-	minScore, maxScore, err := s.config.ConsumeFn(topic)
+	minScore, maxScore, err := s.config.ConsumeRange(topic)
 	if err != nil {
 		return nil, err
 	}

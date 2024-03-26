@@ -86,7 +86,7 @@ func TestStrictSubscriber_NoConsumeBefore(t *testing.T) {
 			Client:       redisClientOrFail(t),
 			Unmarshaller: rediszset.WithoutScoreMarshallerUnmarshaller{},
 			RestTime:     100 * time.Millisecond,
-			ConsumeFn: func(topic string) (start, end string, err error) {
+			ConsumeRange: func(topic string) (start, end string, err error) {
 				return "-inf", strconv.FormatInt(time.Now().Unix(), 10), nil
 			},
 		},
