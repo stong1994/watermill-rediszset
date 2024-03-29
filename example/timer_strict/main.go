@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"github.com/google/uuid"
+	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -21,8 +21,8 @@ const (
 
 func main() {
 	redisPub, redisSub := redisPubSub()
-	rabbitmqPub, rabbitmaSub := rabbitmqPubSub()
-	router := run(redisSub, rabbitmqPub, rabbitmaSub)
+	rabbitmqPub, rabbitmqSub := rabbitmqPubSub()
+	router := run(redisSub, rabbitmqPub, rabbitmqSub)
 	<-router.Running()
 	now := time.Now()
 	err := redisPub.Publish(redisTopic, rediszset.NewMessage(uuid.NewString(), float64(now.Add(time.Second*5).Unix()), []byte("hello world")))
@@ -52,14 +52,6 @@ func run(
 		rabbitmqPub,
 		func(msg *message.Message) ([]*message.Message, error) {
 			logger.Info("get task from redis", map[string]any{"payload": string(msg.Payload)})
-			tm, err := rediszset.GetScore(msg)
-			if err != nil {
-				return nil, err
-			}
-			if tm >= float64(time.Now().Unix()) {
-				logger.Info("not at now", nil)
-				return nil, fmt.Errorf("not at now, task time is %s", time.Unix(int64(tm), 0).Format(time.DateTime))
-			}
 			return []*message.Message{msg}, nil
 		},
 	)
@@ -145,6 +137,9 @@ func redisPubSub() (*rediszset.Publisher, *rediszset.StrictSubscriber) {
 			Unmarshaller:    rediszset.WithoutScoreMarshallerUnmarshaller{},
 			RestTime:        time.Second,
 			NackResendSleep: time.Second,
+			ConsumeRange: func(topic string) (min, max string, err error) {
+				return "-inf", strconv.FormatInt(time.Now().Unix(), 10), nil
+			},
 		},
 		SimpleLocker{client: client},
 		logger,
